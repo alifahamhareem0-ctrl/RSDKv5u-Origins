@@ -1,43 +1,70 @@
-name: Build RSDKv5
+name: Build RSDKv5U (Origins)
 
-on: workflow_dispatch
-
-# each artifact is like 15MB so we'll start by only doing it manually
-# on:
-#   push:
-#     branches:
-#       - master
-
-# TODO: readd with: submodules: recursive once we can
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+  workflow_dispatch:
 
 jobs:
-  v5-windows-x64:
-    runs-on: windows-2022
-    defaults:
-      run:
-        shell: msys2 {0}
+  # --- JOB 1: WINDOWS 64-BIT BUILD (PLUS ENABLED) ---
+  build-win64:
+    name: Windows x64 Build (Plus Enabled)
+    runs-on: windows-latest
+
     steps:
-      - name: Checkout 
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      - name: Setup MSYS2
-        uses: msys2/setup-msys2@v4
-        with:
-          msystem: MINGW64
-          update: true
-          install: pkg-config make git mingw-w64-x86_64-gcc mingw-w64-x86_64-SDL2 mingw-w64-x86_64-libogg mingw-w64-x86_64-libtheora
-      - name: Build RSDKv5 + U
-        run: |
-          make -j8 RSDK_ONLY=1 AUTOBUILD=1
-          make -j8 clean-rsdk
-          make -j8 RSDK_ONLY=1 RSDK_REVISION=3 AUTOBUILD=1
-      - name: Move artifacts
-        run: |
-          mkdir artifacts
-          mv ./bin/Windows/DX9/*.exe ./artifacts
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v1.0.0
-        with:
-          name: v5-windows-x64
-          path: artifacts
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+
+    - name: Configure CMake
+      run: |
+        cmake -B build `
+          -DRETRO_REVISION=3 `
+          -DRETRO_DISABLE_PLUS=OFF `
+          -DCMAKE_BUILD_TYPE=Release
+
+    - name: Build Project
+      run: cmake --build build --config Release
+
+    - name: Upload Windows Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: rsdkv5u-win64
+        path: build/Release/
+
+  # --- JOB 2: ANDROID APK BUILD (PLUS ENABLED) ---
+  build-android:
+    name: Android APK Build (Plus Enabled)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
+
+    - name: Setup Java JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    - name: Setup Android SDK & NDK
+      uses: android-actions/setup-android@v3
+
+    # Forces compilation of native engine binaries (.so) directly into the app package
+    - name: Compile Native Libs and Package APK
+      run: |
+        cd android
+        chmod +x gradlew
+        ./gradlew assembleRelease \
+          -Pandroid.injected.cmake.arguments="-DRETRO_REVISION=3 -DRETRO_DISABLE_PLUS=OFF"
+
+    - name: Upload Android Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: rsdkv5u-android-release
+        path: android/app/build/outputs/apk/release/
