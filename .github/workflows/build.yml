@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # --- JOB 1: WINDOWS 64-BIT BUILD (PLUS ENABLED) ---
+  # --- JOB 1: WINDOWS x64 BUILD ---
   build-win64:
     name: Windows x64 Build (Plus Enabled)
     runs-on: windows-latest
@@ -19,12 +19,21 @@ jobs:
       with:
         submodules: 'recursive'
 
+    - name: Bootstrap vcpkg
+      run: |
+        cd C:\vcpkg
+        .\bootstrap-vcpkg.bat
+      shell: pwsh
+
     - name: Configure CMake
       run: |
-        cmake -B build `
+        cmake -G "Ninja" -B build `
           -DRETRO_REVISION=3 `
           -DRETRO_DISABLE_PLUS=OFF `
-          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_BUILD_TYPE=Release `
+          -DVCPKG_TARGET_TRIPLET=x64-windows `
+          -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+      shell: pwsh
 
     - name: Build Project
       run: cmake --build build --config Release
@@ -33,9 +42,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: rsdkv5u-win64
-        path: build/Release/
+        path: build/
 
-  # --- JOB 2: ANDROID APK BUILD (PLUS ENABLED) ---
+  # --- JOB 2: ANDROID APK BUILD (FIXED NATIVE LIBS PATHING) ---
   build-android:
     name: Android APK Build (Plus Enabled)
     runs-on: ubuntu-latest
@@ -46,6 +55,21 @@ jobs:
       with:
         submodules: 'recursive'
 
+    # FIX: Download and deploy raw dependencies directly into the structural Android pathing trees
+    - name: Inject Android Audio Dependencies
+      run: |
+        mkdir -p dependencies/android
+        
+        # Download and place libogg
+        curl -L https://xiph.org -o libogg.tar.gz
+        tar -xzf libogg.tar.gz
+        mv libogg-1.3.5 dependencies/android/libogg
+        
+        # Download and place libtheora
+        curl -L https://xiph.org -o libtheora.tar.gz
+        tar -xzf libtheora.tar.gz
+        mv libtheora-1.1.1 dependencies/android/libtheora
+
     - name: Setup Java JDK
       uses: actions/setup-java@v4
       with:
@@ -55,7 +79,6 @@ jobs:
     - name: Setup Android SDK & NDK
       uses: android-actions/setup-android@v3
 
-    # Forces compilation of native engine binaries (.so) directly into the app package
     - name: Compile Native Libs and Package APK
       run: |
         cd android
@@ -67,4 +90,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: rsdkv5u-android-release
-        path: android/app/build/outputs/apk/release/
+        path: android/app/build/outputs/apk/release/*.apk
