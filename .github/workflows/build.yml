@@ -1,93 +1,73 @@
-name: Build RSDKv5U (Origins)
+name: Android Automated Build
 
 on:
   push:
     branches: [ "master", "main" ]
   pull_request:
     branches: [ "master", "main" ]
-  workflow_dispatch:
+  workflow_dispatch: # Allows you to manually click "Run workflow" from GitHub
 
 jobs:
-  # --- JOB 1: WINDOWS x64 BUILD ---
-  build-win64:
-    name: Windows x64 Build (Plus Enabled)
-    runs-on: windows-latest
-
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-      with:
-        submodules: 'recursive'
-
-    - name: Bootstrap vcpkg
-      run: |
-        cd C:\vcpkg
-        .\bootstrap-vcpkg.bat
-      shell: pwsh
-
-    - name: Configure CMake
-      run: |
-        cmake -G "Ninja" -B build `
-          -DRETRO_REVISION=3 `
-          -DRETRO_DISABLE_PLUS=OFF `
-          -DCMAKE_BUILD_TYPE=Release `
-          -DVCPKG_TARGET_TRIPLET=x64-windows `
-          -DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
-      shell: pwsh
-
-    - name: Build Project
-      run: cmake --build build --config Release
-
-    - name: Upload Windows Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: rsdkv5u-win64
-        path: build/
-
-  # --- JOB 2: ANDROID APK BUILD (FIXED NATIVE LIBS PATHING) ---
   build-android:
-    name: Android APK Build (Plus Enabled)
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
+    # Step 1: Check out the repository cleanly
+    - name: Checkout Source Code
       uses: actions/checkout@v4
       with:
-        submodules: 'recursive'
+        submodules: recursive
 
-    # FIX: Download and deploy raw dependencies directly into the structural Android pathing trees
-    - name: Inject Android Audio Dependencies
-      run: |
-        mkdir -p dependencies/android
-        
-        # Download and place libogg
-        curl -L https://xiph.org -o libogg.tar.gz
-        tar -xzf libogg.tar.gz
-        mv libogg-1.3.5 dependencies/android/libogg
-        
-        # Download and place libtheora
-        curl -L https://xiph.org -o libtheora.tar.gz
-        tar -xzf libtheora.tar.gz
-        mv libtheora-1.1.1 dependencies/android/libtheora
-
-    - name: Setup Java JDK
-      uses: actions/setup-java@v4
+    # Step 2: Set up Java Environment required by Gradle
+    - name: Set up JDK 17
+      uses: actions/actions-setup-java@v4
       with:
-        distribution: 'zulu'
+        distribution: 'temurin'
         java-version: '17'
 
-    - name: Setup Android SDK & NDK
-      uses: android-actions/setup-android@v3
+    # Step 3: Fetch static multimedia audio/video dependencies in the correct root directory
+    - name: Download Multimedia Libraries
+      run: |
+        mkdir -p dependencies/android
+        cd dependencies/android
+        
+        # Download legal stable versions of Ogg and Theora
+        curl -L https://xiph.org -o ogg.tar.gz
+        curl -L https://xiph.org -o theora.tar.gz
+        
+        # Extract files
+        tar -xzf ogg.tar.gz
+        tar -xzf theora.tar.gz
+        
+        # Rename folders to meet precise NDK configuration expectations
+        mv libogg-1.3.5 libogg
+        mv libtheora-1.1.1 libtheora
 
-    - name: Compile Native Libs and Package APK
+    # Step 4: Construct relative Linux Symlinks for the native compiler
+    - name: Create Native Engine Links
+      run: |
+        cd android/app/jni
+        ln -s "../../../" "RSDKv5"
+
+    # Step 5: Setup Android NDK Environment Toolchain
+    - name: Install Android NDK
+      uses: android-actions/setup-android@v3
+      with:
+        ndk-version: '25.1.8937393'
+
+    # Step 6: Make the local Gradle wrapper executable
+    - name: Grant Execute Permission to Gradle
+      run: chmod +x android/gradlew
+
+    # Step 7: Build the project with Plus features enabled (RETRO_DISABLE_PLUS=false)
+    - name: Build Android Debug APK
       run: |
         cd android
-        chmod +x gradlew
-        ./gradlew assembleRelease \
-          -Pandroid.injected.cmake.arguments="-DRETRO_REVISION=3 -DRETRO_DISABLE_PLUS=OFF"
+        ./gradlew assembleDebug -PretroRevision=3 -PretroDisablePlus=false
 
-    - name: Upload Android Artifact
+    # Step 8: Package and upload the output to GitHub Artifacts
+    - name: Upload Finished APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: rsdkv5u-android-release
-        path: android/app/build/outputs/apk/release/*.apk
+        name: rsdkv5u-origins-android-apk
+        path: android/app/build/outputs/apk/debug/app-debug.apk
