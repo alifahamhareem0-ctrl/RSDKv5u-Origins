@@ -1,73 +1,40 @@
-name: Android Automated Build
+name: Windows 64-bit Automated Build
 
 on:
   push:
     branches: [ "master", "main" ]
   pull_request:
     branches: [ "master", "main" ]
-  workflow_dispatch: # Allows you to manually click "Run workflow" from GitHub
+  workflow_dispatch: 
 
 jobs:
-  build-android:
-    runs-on: ubuntu-latest
+  build-windows:
+    runs-on: windows-latest
 
     steps:
-    # Step 1: Check out the repository cleanly
     - name: Checkout Source Code
       uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    # Step 2: Set up Java Environment required by Gradle
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v2
 
-    # Step 3: Fetch static multimedia audio/video dependencies in the correct root directory
-    - name: Download Multimedia Libraries
+    - name: Configure CMake for Windows x64
       run: |
-        mkdir -p dependencies/android
-        cd dependencies/android
-        
-        # Download legal stable versions of Ogg and Theora
-        curl -L https://downloads.xiph.org/releases/ogg/libogg-1.3.6.zip -o ogg.zip
-        curl -L https://downloads.xiph.org/releases/theora/libtheora-1.2.0.tar.gz -o theora.tar.gz
-        
-        # Extract files
-        unzip ogg.zip
-        tar -xzf theora.tar.gz
-        
-        # Rename folders to meet precise NDK configuration expectations
-        mv libogg-1.3.6 libogg
-        mv libtheora-1.2.0 libtheora
+        mkdir build
+        cd build
+        cmake .. -A x64 -DRETRO_REVISION=3 -DRETRO_DISABLE_PLUS=false
 
-    # Step 4: Construct relative Linux Symlinks for the native compiler
-    - name: Create Native Engine Links
+    - name: Build Executable via MSBuild
       run: |
-        cd android/app/jni
-        ln -s "../../../" "RSDKv5"
+        cd build
+        msbuild RSDKv5u.sln /p:Configuration=Release /p:Platform=x64 /m
 
-    # Step 5: Setup Android NDK Environment Toolchain
-    - name: Install Android NDK
-      uses: android-actions/setup-android@v3
-      with:
-        ndk-version: '25.1.8937393'
-
-    # Step 6: Make the local Gradle wrapper executable
-    - name: Grant Execute Permission to Gradle
-      run: chmod +x android/gradlew
-
-    # Step 7: Build the project with Plus features enabled (RETRO_DISABLE_PLUS=false)
-    - name: Build Android Release APK
-      run: |
-        cd android
-        ./gradlew assembleRelease -PretroRevision=3 -PretroDisablePlus=false
-
-    # CHANGED: Maps to the release artifacts output directory
-    - name: Upload Finished APK Artifact
+    - name: Upload Finished Windows 64-bit Build
       uses: actions/upload-artifact@v4
       with:
-        name: rsdkv5u-origins-android-apk
-        path: android/app/build/outputs/apk/release/app-release-unsigned.apk
+        name: rsdkv5u-origins-win64
+        path: |
+          build/Release/
+          build/bin/
