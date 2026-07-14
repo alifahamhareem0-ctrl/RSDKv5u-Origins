@@ -20,21 +20,14 @@ jobs:
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v2
 
-    - name: Configure CMake for Windows x64
-      run: |
-        mkdir build
-        cd build
-        cmake .. -A x64 -DRETRO_REVISION=3 -DRETRO_DISABLE_PLUS=false
-
-    - name: Build Executable via MSBuild
-      run: |
-        cd build
-        msbuild RSDKv5u.sln /p:Configuration=Release /p:Platform=x64 /m
+    - name: Build Executable via MSBuild Solution
+      # Directly targets the native project structure bypassing the CMake setup block
+      run: msbuild RSDKv5U.sln /p:Configuration=Release /p:Platform=x64 /m
 
     - name: Upload Finished Windows 64-bit Build
       uses: actions/upload-artifact@v4
       with:
         name: rsdkv5u-origins-win64
         path: |
-          build/Release/
-          build/bin/
+          x64/Release/
+          bin/x64/Release/
