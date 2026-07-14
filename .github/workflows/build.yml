@@ -60,14 +60,14 @@ jobs:
       run: chmod +x android/gradlew
 
     # Step 7: Build the project with Plus features enabled (RETRO_DISABLE_PLUS=false)
-    - name: Build Android Debug APK
+    - name: Build Android Release APK
       run: |
         cd android
-        ./gradlew assembleDebug -PretroRevision=3 -PretroDisablePlus=false
+        ./gradlew assembleRelease -PretroRevision=3 -PretroDisablePlus=false
 
-    # Step 8: Package and upload the output to GitHub Artifacts
+    # CHANGED: Maps to the release artifacts output directory
     - name: Upload Finished APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: rsdkv5u-origins-android-apk
-        path: android/app/build/outputs/apk/debug/app-debug.apk
+        path: android/app/build/outputs/apk/release/app-release-unsigned.apk
