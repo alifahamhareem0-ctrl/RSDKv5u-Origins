@@ -139,7 +139,7 @@ if(COMPILE_THEORA)
         ${THEORA_DIR}/lib/analyze.c
         ${THEORA_DIR}/lib/apiwrapper.c
         ${THEORA_DIR}/lib/bitpack.c
-        ${THEORA_DIR}/lib/cpu.c
+        ${THEORA_DIR}/lib/arm/armcpu.c
         ${THEORA_DIR}/lib/decapiwrapper.c
         ${THEORA_DIR}/lib/decinfo.c
         ${THEORA_DIR}/lib/decode.c
@@ -167,7 +167,7 @@ if(COMPILE_THEORA)
 
     target_compile_options(libtheora PRIVATE ${THEORA_FLAGS})
 
-    target_include_directories(libtheora PRIVATE ${THEORA_DIR}/include ${OGG_DIR}/include)
+    target_include_directories(libtheora PRIVATE ${THEORA_DIR}/include ${OGG_DIR}/include ${THEORA_DIR}/lib/arm)
     target_include_directories(RetroEngine PRIVATE ${THEORA_DIR}/include)
     target_link_libraries(RetroEngine libtheora)
 endif()
